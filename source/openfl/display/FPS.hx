@@ -11,6 +11,9 @@ import openfl.display._internal.stats.DrawCallContext;
 #if flash
 import openfl.Lib;
 #end
+#if lime
+import lime.system.System as LimeSystem;
+#end
 #if openfl
 import openfl.system.System;
 #end
@@ -18,6 +21,15 @@ import openfl.system.System;
 	The FPS class provides an easy-to-use monitor to display
 	the current frame rate of an OpenFL project
 **/
+#if cpp
+#if windows
+@:cppFileCode('#include <windows.h>')
+#elseif (ios || mac)
+@:cppFileCode('#include <mach-o/arch.h>')
+#else
+@:headerInclude('sys/utsname.h')
+#end
+#end
 #if !openfl_debug
 @:fileXml('tags="haxe,release"')
 @:noDebug
@@ -28,6 +40,7 @@ class FPS extends TextField
 		The current frame rate, expressed using frames-per-second
 	**/
 	public var currentFPS(default, null):Int;
+	@:noCompletion private final os:String = (LimeSystem.platformName == LimeSystem.platformVersion || LimeSystem.platformVersion == null) ? '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch()}' #end : '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch()}' #end + ' - ${LimeSystem.platformVersion}';
 	@:noCompletion private var cacheCount:Int;
 	@:noCompletion private var currentTime:Float;
 	@:noCompletion private var times:Array<Float>;
@@ -75,6 +88,7 @@ class FPS extends TextField
 			memoryMegas = Math.abs(FlxMath.roundDecimal(System.totalMemory / 1000000, 1));
 			text += "\nMemory: " + memoryMegas + " MB";
 			#end
+			text += os;
 			text += "\nExtra Keys v" + MainMenuState.extraKeysVersion;
 			#if CHECK_FOR_UPDATES
 			if (MainMenuState.extraKeysVersion != TitleState.extraKeyUpdateVersion) {
@@ -95,4 +109,46 @@ class FPS extends TextField
 		}
 		cacheCount = currentCount;
 	}
+	
+	#if cpp
+	#if windows
+	@:functionCode('
+		SYSTEM_INFO osInfo;
+
+		GetSystemInfo(&osInfo);
+
+		switch(osInfo.wProcessorArchitecture)
+		{
+			case 9:
+				return ::String("x86_64");
+			case 5:
+				return ::String("ARM");
+			case 12:
+				return ::String("ARM64");
+			case 6:
+				return ::String("IA-64");
+			case 0:
+				return ::String("x86");
+			default:
+				return ::String("Unknown");
+		}
+	')
+	#elseif (ios || mac)
+	@:functionCode('
+		const NXArchInfo *archInfo = NXGetLocalArchInfo();
+    	return ::String(archInfo == NULL ? "Unknown" : archInfo->name);
+	')
+	#else
+	@:functionCode('
+		struct utsname osInfo{};
+		uname(&osInfo);
+		return ::String(osInfo.machine);
+	')
+	#end
+	@:noCompletion
+	private function getArch():String
+	{
+		return "Unknown";
+	}
+	#end
 }
